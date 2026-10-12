@@ -18,13 +18,17 @@ export class CameraService {
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
       return [];
     }
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices
-      .filter((d) => d.kind === 'videoinput')
-      .map((d, index) => ({
-        deviceId: d.deviceId,
-        label: d.label || `Camera ${index + 1}`,
-      }));
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices
+        .filter((d) => d.kind === 'videoinput')
+        .map((d, index) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Camera ${index + 1}`,
+        }));
+    } catch {
+      return [];
+    }
   }
 
   async startCamera(
@@ -53,33 +57,50 @@ export class CameraService {
     };
 
     try {
+      // 1. Try with preferred resolution & facingMode
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.activeStream = stream;
-      this.videoTrack = stream.getVideoTracks()[0] || null;
-
-      videoElement.srcObject = stream;
-      await videoElement.play();
-      return stream;
+      return await this.attachStreamToVideo(videoElement, stream);
     } catch (err: any) {
-      // Fallback to simpler constraints if resolution failed
+      // 2. Fallback to flexible facingMode without strict resolution
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: facingMode } },
           audio: false,
         });
-        this.activeStream = fallbackStream;
-        this.videoTrack = fallbackStream.getVideoTracks()[0] || null;
-        videoElement.srcObject = fallbackStream;
-        await videoElement.play();
-        return fallbackStream;
-      } catch (fallbackErr) {
-        throw new Error(
-          err.name === 'NotAllowedError'
-            ? 'Quyền truy cập Camera bị từ chối. Vui lòng cho phép quyền trong cài đặt trình duyệt/thiết bị.'
-            : 'Không thể mở Camera: ' + (err.message || 'Thiết bị camera không khả dụng.')
-        );
+        return await this.attachStreamToVideo(videoElement, fallbackStream);
+      } catch {
+        // 3. Fallback to any available video camera
+        try {
+          const simpleStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          return await this.attachStreamToVideo(videoElement, simpleStream);
+        } catch (finalErr: any) {
+          throw new Error(
+            err.name === 'NotAllowedError'
+              ? 'Quyền truy cập Camera bị từ chối. Vui lòng bấm cho phép quyền camera trong trình duyệt hoặc dùng nút Tải ảnh lên.'
+              : 'Không thể mở Camera: ' + (err.message || 'Thiết bị camera không khả dụng.')
+          );
+        }
       }
     }
+  }
+
+  private async attachStreamToVideo(
+    videoElement: HTMLVideoElement,
+    stream: MediaStream
+  ): Promise<MediaStream> {
+    this.activeStream = stream;
+    this.videoTrack = stream.getVideoTracks()[0] || null;
+
+    videoElement.srcObject = stream;
+    try {
+      await videoElement.play();
+    } catch (e) {
+      // Auto-play was prevented or already playing
+    }
+    return stream;
   }
 
   async toggleTorch(): Promise<boolean> {
@@ -119,8 +140,23 @@ export class CameraService {
 
   captureFrame(videoElement: HTMLVideoElement): Promise<Blob> {
     return new Promise((resolve, reject) => {
+      if (!videoElement) {
+        return reject(new Error('Khung hình camera không tồn tại'));
+      }
+
+      // Check video readyState
+      if (videoElement.readyState < 2) {
+        return reject(
+          new Error('Camera chưa sẵn sàng hoặc luồng video chưa nạp xong. Vui lòng đợi 1 giây và thử lại.')
+        );
+      }
+
       const width = videoElement.videoWidth || 1920;
       const height = videoElement.videoHeight || 1080;
+
+      if (width === 0 || height === 0) {
+        return reject(new Error('Kích thước khung hình camera không hợp lệ. Vui lòng thử lại.'));
+      }
 
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -134,7 +170,7 @@ export class CameraService {
       canvas.toBlob(
         (blob) => {
           if (blob) resolve(blob);
-          else reject(new Error('Failed to convert canvas to Blob'));
+          else reject(new Error('Lỗi xuất dữ liệu ảnh từ Canvas'));
         },
         'image/jpeg',
         0.95

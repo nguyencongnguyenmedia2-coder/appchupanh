@@ -8,6 +8,7 @@ import { processAndStampPhoto, StampRenderMetadata } from '../../services/image/
 import { savePhotoBlob } from '../../storage/blobStorage';
 import { db } from '../../storage/db';
 import { Project, WorkItem, StampTemplate, PhotoRecord } from '../../models';
+import { PRESET_STAMP_TEMPLATES } from '../../models/defaultTemplates';
 import { QuickProjectPicker } from './QuickProjectPicker';
 import { ConfirmCaptureModal } from './ConfirmCaptureModal';
 import {
@@ -18,6 +19,7 @@ import {
   Clock,
   Image as ImageIcon,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 interface CameraViewProps {
@@ -38,7 +40,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     preSelectedProjectId || ''
   );
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string>('');
-  const [currentTemplate, setCurrentTemplate] = useState<StampTemplate | null>(null);
+  const [currentTemplate, setCurrentTemplate] = useState<StampTemplate>(
+    PRESET_STAMP_TEMPLATES[0]
+  );
 
   const [cameras, setCameras] = useState<CameraDeviceInfo[]>([]);
   const [activeDeviceId, setActiveDeviceId] = useState<string>('');
@@ -52,6 +56,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
+  const [isFlashing, setIsFlashing] = useState<boolean>(false);
+
+  // Cached GPS & Address from background pre-fetching
+  const [cachedGps, setCachedGps] = useState<{
+    latitude: number;
+    longitude: number;
+    altitude?: number;
+    accuracy?: number;
+  } | null>(null);
+  const [cachedAddress, setCachedAddress] = useState<string>('');
 
   // Capture result state for confirmation modal
   const [capturedState, setCapturedState] = useState<{
@@ -67,34 +81,68 @@ export const CameraView: React.FC<CameraViewProps> = ({
     template: StampTemplate;
   } | null>(null);
 
-  // Load initial projects, work items & template
+  // 1. Pre-fetch GPS and geocoding in background on mount
+  useEffect(() => {
+    let active = true;
+
+    getCurrentCoordinates()
+      .then(async (geo) => {
+        if (!active || !geo.isAvailable) return;
+        const gpsObj = {
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          altitude: geo.altitude,
+          accuracy: geo.accuracy,
+        };
+        setCachedGps(gpsObj);
+
+        // Fetch reverse geocode in background
+        const addrRes = await reverseGeocode(geo.latitude, geo.longitude);
+        if (active && addrRes?.address) {
+          setCachedAddress(addrRes.address);
+        }
+      })
+      .catch((e) => console.log('Background GPS fetch skipped:', e));
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 2. Load initial projects, work items & template safely
   useEffect(() => {
     const loadInitData = async () => {
-      const pList = await db.projects.toArray();
-      setProjects(pList);
-      if (preSelectedProjectId) {
-        setSelectedProjectId(preSelectedProjectId);
-      } else if (pList.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(pList[0].id);
-      }
+      try {
+        const pList = await db.projects.toArray();
+        setProjects(pList);
+        if (preSelectedProjectId) {
+          setSelectedProjectId(preSelectedProjectId);
+        } else if (pList.length > 0 && !selectedProjectId) {
+          setSelectedProjectId(pList[0].id);
+        }
 
-      const items = await db.workItems.toArray();
-      setWorkItems(items);
-      if (items.length > 0 && !selectedWorkItemId) {
-        setSelectedWorkItemId(items[0].id);
-      }
+        const items = await db.workItems.toArray();
+        setWorkItems(items);
+        if (items.length > 0 && !selectedWorkItemId) {
+          setSelectedWorkItemId(items[0].id);
+        }
 
-      // Load default template
-      const defaultT =
-        (await db.stampTemplates.where('isDefault').equals(1 as any).first()) ||
-        (await db.stampTemplates.toCollection().first());
-      if (defaultT) setCurrentTemplate(defaultT);
+        // Load default template using toArray() to avoid unindexed key errors
+        const templates = await db.stampTemplates.toArray();
+        if (templates && templates.length > 0) {
+          const defaultT =
+            templates.find((t) => t.isDefault) || templates[0] || PRESET_STAMP_TEMPLATES[0];
+          setCurrentTemplate(defaultT);
+        }
+      } catch (err) {
+        console.warn('Lỗi tải dữ liệu ban đầu:', err);
+      }
     };
 
     loadInitData();
   }, [preSelectedProjectId]);
 
-  // Start Camera Stream
+  // 3. Start Camera Stream
   useEffect(() => {
     let mounted = true;
 
@@ -144,6 +192,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const handleTriggerCapture = () => {
     if (isCapturing || countdown !== null) return;
 
+    // If camera has error, prompt user with file input / native camera directly
+    if (cameraError || !videoRef.current || videoRef.current.readyState < 2) {
+      fileInputRef.current?.click();
+      return;
+    }
+
     if (timerSeconds > 0) {
       let count = timerSeconds;
       setCountdown(count);
@@ -168,23 +222,33 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   // Perform direct frame capture from video element
   const performCapture = async () => {
-    if (!videoRef.current || !currentTemplate) return;
+    if (!videoRef.current) {
+      fileInputRef.current?.click();
+      return;
+    }
+
     setIsCapturing(true);
+
+    // Trigger visual shutter flash effect
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 150);
 
     try {
       const rawBlob = await cameraService.captureFrame(videoRef.current);
       await processRawPhotoForConfirmation(rawBlob);
     } catch (err: any) {
-      alert('Lỗi chụp ảnh: ' + err.message);
+      console.warn('Capture frame fallback:', err);
+      // If frame capture failed, open native camera / file input so user is not blocked
+      fileInputRef.current?.click();
     } finally {
       setIsCapturing(false);
     }
   };
 
-  // Handle Photo Import from device gallery
+  // Handle Photo Import from device gallery or native camera picker
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentTemplate) return;
+    if (!file) return;
 
     setIsCapturing(true);
     try {
@@ -197,37 +261,37 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   };
 
-  // Process raw photo (capture or import) with location and generate initial stamp preview
+  // Process raw photo (capture or import) with location and generate stamp preview
   const processRawPhotoForConfirmation = async (blob: Blob) => {
-    if (!currentTemplate) return;
-
     const now = new Date();
     const isoDateTime = now.toISOString();
 
-    // 1. Get GPS coordinates
-    const geo = await getCurrentCoordinates();
-    const gpsData = geo.isAvailable
-      ? {
-          latitude: geo.latitude,
-          longitude: geo.longitude,
-          altitude: geo.altitude,
-          accuracy: geo.accuracy,
+    // 1. Get GPS coordinates: use cached GPS first, or quick-fetch with 1.5s timeout
+    let gpsData = cachedGps;
+    if (!gpsData) {
+      try {
+        const quickGeo = await Promise.race([
+          getCurrentCoordinates(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+        ]);
+        if (quickGeo && quickGeo.isAvailable) {
+          gpsData = {
+            latitude: quickGeo.latitude,
+            longitude: quickGeo.longitude,
+            altitude: quickGeo.altitude,
+            accuracy: quickGeo.accuracy,
+          };
+          setCachedGps(gpsData);
         }
-      : null;
-
-    // 2. Reverse geocode if online and coordinates available
-    let addressStr = '';
-    let addressSource: 'geocoded' | 'manual' | 'none' = 'none';
-
-    if (gpsData) {
-      const geoResult = await reverseGeocode(gpsData.latitude, gpsData.longitude);
-      if (geoResult && geoResult.address) {
-        addressStr = geoResult.address;
-        addressSource = 'geocoded';
+      } catch {
+        // Continue without GPS if unavailable
       }
     }
 
-    // Fallback to project address if reverse geocoding is unavailable
+    // 2. Address: use cached address or fallback to project address
+    let addressStr = cachedAddress;
+    let addressSource: 'geocoded' | 'manual' | 'none' = cachedAddress ? 'geocoded' : 'none';
+
     const proj = projects.find((p) => p.id === selectedProjectId);
     if (!addressStr && proj?.address) {
       addressStr = proj.address;
@@ -235,6 +299,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
 
     const workItem = workItems.find((w) => w.id === selectedWorkItemId);
+    const templateToUse = currentTemplate || PRESET_STAMP_TEMPLATES[0];
 
     // Initial render for confirmation modal
     const meta: StampRenderMetadata = {
@@ -253,7 +318,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       photoId: `PHOTO-${Date.now().toString(36).toUpperCase()}`,
     };
 
-    const stampedResult = await processAndStampPhoto(blob, meta, currentTemplate);
+    const stampedResult = await processAndStampPhoto(blob, meta, templateToUse);
 
     setCapturedState({
       originalBlob: blob,
@@ -265,7 +330,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       addressSource,
       author: 'Kỹ sư Giám sát',
       contractor: proj?.contractor || '',
-      template: currentTemplate,
+      template: templateToUse,
     });
   };
 
@@ -282,11 +347,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
     notes: string;
     saveOriginal: boolean;
   }) => {
-    if (!capturedState || !currentTemplate) return;
+    if (!capturedState) return;
 
     const photoId = `img-${Date.now()}`;
     const proj = projects.find((p) => p.id === selectedProjectId);
     const workItem = workItems.find((w) => w.id === selectedWorkItemId);
+    const templateToUse = capturedState.template || currentTemplate || PRESET_STAMP_TEMPLATES[0];
 
     // Re-render final stamp with any edited parameters
     const finalMeta: StampRenderMetadata = {
@@ -308,7 +374,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const finalOutput = await processAndStampPhoto(
       capturedState.originalBlob,
       finalMeta,
-      currentTemplate
+      templateToUse
     );
 
     // Save stamped blob
@@ -369,7 +435,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       width: finalOutput.width,
       height: finalOutput.height,
       sizeBytes: finalOutput.sizeBytes,
-      templateSnapshot: currentTemplate,
+      templateSnapshot: templateToUse,
       sha256Hash: finalOutput.sha256Hash,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -388,11 +454,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   return (
     <div className="relative flex h-full flex-col bg-black text-white">
-      {/* Hidden file input for importing images */}
+      {/* Hidden file input with capture="environment" for native camera fallback */}
       <input
         type="file"
         ref={fileInputRef}
         accept="image/*"
+        capture="environment"
         onChange={handleFileImport}
         className="hidden"
       />
@@ -411,11 +478,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
       {/* Video Viewfinder */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-950">
+        {/* Shutter White Flash Effect */}
+        {isFlashing && (
+          <div className="absolute inset-0 z-40 bg-white pointer-events-none transition-opacity duration-150" />
+        )}
+
         {cameraError ? (
           <div className="mx-6 max-w-md rounded-2xl border border-red-500/20 bg-red-950/40 p-6 text-center">
             <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
             <h3 className="mt-3 text-lg font-bold text-white">
-              Không thể truy cập Camera
+              Không thể mở Camera trực tiếp
             </h3>
             <p className="mt-2 text-xs leading-relaxed text-red-200">
               {cameraError}
@@ -429,9 +501,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-semibold hover:bg-sky-500"
+                className="flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-semibold hover:bg-sky-500"
               >
-                Nhập ảnh có sẵn từ thiết bị
+                <Camera className="h-4 w-4" />
+                <span>Mở máy ảnh thiết bị / Tải ảnh lên</span>
               </button>
             </div>
           </div>
@@ -451,6 +524,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
             <div className="flex h-28 w-28 items-center justify-center rounded-full bg-sky-500/80 text-6xl font-black text-white shadow-2xl animate-ping">
               {countdown}
             </div>
+          </div>
+        )}
+
+        {/* Capturing Processing Spinner */}
+        {isCapturing && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs">
+            <Loader2 className="h-10 w-10 text-sky-400 animate-spin" />
+            <span className="mt-3 text-xs font-semibold text-slate-200">
+              Đang xử lý và đóng dấu ảnh...
+            </span>
           </div>
         )}
 
@@ -540,7 +623,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex flex-col items-center gap-1 text-slate-400 hover:text-white"
-            title="Nhập ảnh từ thư viện"
+            title="Nhập ảnh từ thư viện thiết bị"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800">
               <ImageIcon className="h-5 w-5" />
@@ -564,7 +647,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             />
           </button>
 
-          {/* Empty spacer or switch camera button */}
+          {/* Flip Camera button */}
           <button
             onClick={handleFlipCamera}
             className="flex flex-col items-center gap-1 text-slate-400 hover:text-white"
