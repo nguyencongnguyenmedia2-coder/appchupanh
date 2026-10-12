@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="hat" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <!-- Camera Body -->
+  <rect x="96" y="140" width="320" height="240" rx="40" fill="#ffffff" fill-opacity="0.95"/>
+  <circle cx="256" cy="260" r="70" fill="#0284c7"/>
+  <circle cx="256" cy="260" r="45" fill="#0f172a"/>
+  <circle cx="275" cy="240" r="14" fill="#38bdf8"/>
+  <rect x="140" y="100" width="70" height="40" rx="12" fill="#ffffff" fill-opacity="0.95"/>
+  <!-- Construction Hat Accent -->
+  <path d="M 216 110 C 216 80, 296 80, 296 110 Z" fill="url(#hat)"/>
+  <path d="M 196 110 L 316 110 L 316 122 L 196 122 Z" rx="4" fill="url(#hat)"/>
+</svg>

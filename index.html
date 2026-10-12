@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0284c7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TimeSnap Pro" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="description" content="TimeSnap Construction Pro — Ứng dụng chụp ảnh công trình chuyên nghiệp, đóng dấu ngày giờ, tọa độ GPS & địa chỉ hiện trường, lưu trữ cục bộ và xuất báo cáo PDF." />
+    <title>TimeSnap Construction Pro — Máy Ảnh Công Trình Chuyên Nghiệp</title>
+  </head>
+  <body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('SW registration skipped:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
