@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FolderKanban, Camera, Image as ImageIcon, FileText } from 'lucide-react';
+import { Home, Stamp, Camera, Image as ImageIcon, FileText } from 'lucide-react';
 
 interface BottomNavProps {
   currentPage: string;
@@ -9,9 +9,9 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ currentPage, onNavigate }) => {
   const navItems = [
     { id: 'dashboard', label: 'Trang chủ', icon: Home },
-    { id: 'projects', label: 'Công trình', icon: FolderKanban },
-    { id: 'camera', label: 'Chụp ảnh', icon: Camera, isCenter: true },
     { id: 'gallery', label: 'Thư viện', icon: ImageIcon },
+    { id: 'camera', label: 'Chụp ảnh', icon: Camera, isCenter: true },
+    { id: 'templates', label: 'Mẫu dấu', icon: Stamp },
     { id: 'reports', label: 'Báo cáo', icon: FileText },
   ];
 

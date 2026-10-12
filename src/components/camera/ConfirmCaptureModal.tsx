@@ -8,8 +8,10 @@ import {
   User,
   ShieldCheck,
   Info,
+  Building2,
+  Layers,
 } from 'lucide-react';
-import { StampTemplate, Project, WorkItem } from '../../models';
+import { StampTemplate, WorkItem } from '../../models';
 import { formatDateTime } from '../../services/image/stampEngine';
 
 interface ConfirmCaptureModalProps {
@@ -21,7 +23,7 @@ interface ConfirmCaptureModalProps {
   initialAddress: string;
   gpsSource: 'device' | 'manual' | 'none';
   addressSource: 'geocoded' | 'manual' | 'none';
-  project?: Project;
+  initialProjectName?: string;
   workItem?: WorkItem;
   defaultAuthor?: string;
   defaultContractor?: string;
@@ -34,6 +36,7 @@ interface ConfirmCaptureModalProps {
     gpsSource: 'device' | 'manual' | 'none';
     addressDisplay: string;
     addressSource: 'geocoded' | 'manual' | 'none';
+    projectName: string;
     author: string;
     contractor: string;
     notes: string;
@@ -49,7 +52,7 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
   initialAddress,
   gpsSource,
   addressSource,
-  project,
+  initialProjectName = '',
   workItem,
   defaultAuthor = 'Kỹ sư Giám sát',
   defaultContractor = '',
@@ -66,10 +69,9 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
   const [isCustomGps, setIsCustomGps] = useState(gpsSource === 'manual');
 
   const [address, setAddress] = useState(initialAddress);
+  const [projectName, setProjectName] = useState(initialProjectName);
   const [author, setAuthor] = useState(defaultAuthor);
-  const [contractor, setContractor] = useState(
-    defaultContractor || project?.contractor || ''
-  );
+  const [contractor, setContractor] = useState(defaultContractor);
   const [notes, setNotes] = useState('');
   const [saveOriginal, setSaveOriginal] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +94,7 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
         gpsSource: hasValidGps ? (isCustomGps ? 'manual' : 'device') : 'none',
         addressDisplay: address.trim(),
         addressSource: address.trim() !== initialAddress ? 'manual' : addressSource,
+        projectName: projectName.trim(),
         author: author.trim(),
         contractor: contractor.trim(),
         notes: notes.trim(),
@@ -113,12 +116,14 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
               Xem trước & Xác nhận thông tin đóng dấu
             </h3>
           </div>
-          <span className="text-xs text-slate-400">
-            {project?.name || 'Chưa gán công trình'}
-          </span>
+          {workItem && (
+            <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+              {workItem.name}
+            </span>
+          )}
         </div>
 
-        {/* Content Body: Split view (Image Preview on Left/Top, Metadata Editor on Right/Bottom) */}
+        {/* Content Body */}
         <div className="grid flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2">
           {/* Stamped Photo Preview */}
           <div className="flex flex-col items-center justify-center bg-slate-950 p-4">
@@ -134,20 +139,19 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
 
           {/* Form to tweak timestamp / GPS / Address / Notes */}
           <div className="space-y-4 p-5 text-xs text-slate-300">
-            {/* Project / Work Item Badge */}
-            <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Dự án:</span>
-                <span className="font-semibold text-white">
-                  {project?.name || 'Chưa liên kết'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-slate-400">Hạng mục:</span>
-                <span className="font-semibold text-amber-400">
-                  {workItem?.name || 'Mặc định'}
-                </span>
-              </div>
+            {/* Optional Project / Site Name */}
+            <div>
+              <label className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-200">
+                <Building2 className="h-3.5 w-3.5 text-sky-400" />
+                <span>Tên công trình / Địa điểm (Tùy chọn)</span>
+              </label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="VD: Cầu An Phú, Tòa nhà Landmark..."
+                className="mt-1.5 w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-white focus:border-sky-500 focus:outline-none"
+              />
             </div>
 
             {/* Date Time Section */}
@@ -246,7 +250,7 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
                 rows={2}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Nhập địa chỉ công trình..."
+                placeholder="Nhập địa chỉ hiện trường..."
                 className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-white focus:outline-none"
               />
             </div>
@@ -267,11 +271,12 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300">Nhà thầu</label>
+                <label className="block font-bold text-slate-300">Đơn vị / Nhà thầu</label>
                 <input
                   type="text"
                   value={contractor}
                   onChange={(e) => setContractor(e.target.value)}
+                  placeholder="VD: Delta, Coteccons..."
                   className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 p-1.5 text-white focus:outline-none"
                 />
               </div>
@@ -314,7 +319,7 @@ export const ConfirmCaptureModal: React.FC<ConfirmCaptureModalProps> = ({
             <div className="flex items-start gap-2 rounded-xl bg-slate-950 p-2.5 text-[11px] text-slate-400">
               <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
               <span>
-                Ảnh và dấu bản quyền được lưu an toàn tại IndexedDB thiết bị của bạn.
+                Ảnh và dấu được lưu an toàn tại bộ nhớ thiết bị của bạn.
               </span>
             </div>
           </div>

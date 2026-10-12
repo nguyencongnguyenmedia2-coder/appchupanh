@@ -1,35 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Camera,
-  FolderKanban,
   FileText,
   HardDrive,
-  Plus,
+  Stamp,
   ArrowRight,
-  TrendingUp,
-  ShieldCheck,
   HardHat,
-  Calendar,
 } from 'lucide-react';
 import { db, getStorageStats } from '../storage/db';
-import { Project, PhotoRecord, ReportRecord } from '../models';
+import { PhotoRecord, ReportRecord, StampTemplate } from '../models';
 import { formatBytes } from '../utils/formatters';
 import { PhotoCard } from '../components/gallery/PhotoCard';
 
 interface DashboardPageProps {
   onNavigate: (page: string, params?: any) => void;
   onOpenPhotoDetail: (photo: PhotoRecord) => void;
-  onOpenNewProject: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
   onOpenPhotoDetail,
-  onOpenNewProject,
 }) => {
-  const [projects, setProjects] = useState<Project[]>([]);
   const [recentPhotos, setRecentPhotos] = useState<PhotoRecord[]>([]);
-  const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [templateCount, setTemplateCount] = useState<number>(0);
   const [stats, setStats] = useState<{
     photoCount: number;
     projectCount: number;
@@ -46,25 +39,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   useEffect(() => {
     const loadDashboard = async () => {
-      const [pList, photosList, rList, st] = await Promise.all([
-        db.projects.toArray(),
+      const [photosList, tCount, st] = await Promise.all([
         db.photos.orderBy('createdAt').reverse().limit(8).toArray(),
-        db.reports.toArray(),
+        db.stampTemplates.count(),
         getStorageStats(),
       ]);
 
-      setProjects(pList);
       setRecentPhotos(photosList);
-      setReports(rList);
+      setTemplateCount(tCount);
       setStats(st);
     };
 
     loadDashboard();
   }, []);
 
-  const usedPercent = stats.quotaBytes > 0
-    ? Math.min(100, Math.round((stats.estimatedBytesUsed / stats.quotaBytes) * 100))
-    : 0;
+  const usedPercent =
+    stats.quotaBytes > 0
+      ? Math.min(100, Math.round((stats.estimatedBytesUsed / stats.quotaBytes) * 100))
+      : 0;
 
   return (
     <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -73,15 +65,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-400 border border-sky-500/30">
             <HardHat className="h-3.5 w-3.5" />
-            <span>Hệ thống Chụp ảnh & Giám sát Công trình</span>
+            <span>Hệ thống Chụp ảnh & Giám sát Hiện trường</span>
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
-            Chụp ảnh đóng dấu ngày giờ, tọa độ GPS & địa chỉ hiện trường
+            Chụp ảnh đóng dấu ngày giờ, tọa độ GPS & địa chỉ công trình
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Ứng dụng kiến trúc Local-First hoạt động 100% ngoại tuyến (Offline). Ảnh và dữ liệu được lưu trữ trực tiếp trên thiết bị của bạn với đầy đủ tính năng xuất báo cáo PDF và bảo toàn dữ liệu gốc.
+            Ứng dụng kiến trúc Local-First hoạt động 100% ngoại tuyến (Offline). Chụp và lưu ảnh trực tiếp, đóng dấu thông tin tức thì không cần tạo dự án phức tạp.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -130,24 +122,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        {/* Projects Metric */}
+        {/* Templates Metric */}
         <div
-          onClick={() => onNavigate('projects')}
+          onClick={() => onNavigate('templates')}
           className="cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700 hover:bg-slate-800/40"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Công trình
+              Mẫu đóng dấu
             </span>
             <div className="rounded-xl bg-amber-500/10 p-2 text-amber-400">
-              <FolderKanban className="h-4 w-4" />
+              <Stamp className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 text-2xl sm:text-3xl font-black text-white">
-            {stats.projectCount}
+            {templateCount}
           </div>
           <div className="mt-1 flex items-center text-xs text-slate-400">
-            <span>Đang theo dõi</span>
+            <span>Mẫu sẵn sàng sử dụng</span>
           </div>
         </div>
 
@@ -225,7 +217,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Chưa có ảnh nào được chụp
             </p>
             <p className="mt-1 text-xs text-slate-500 max-w-sm">
-              Mở camera hiện trường để chụp ảnh và tự động đóng dấu ngày giờ, địa chỉ công trình.
+              Mở camera hiện trường để chụp ảnh và tự động đóng dấu ngày giờ, địa chỉ.
             </p>
             <button
               onClick={() => onNavigate('camera')}
@@ -236,100 +228,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4">
-            {recentPhotos.map((photo) => {
-              const proj = projects.find((p) => p.id === photo.projectId);
-              return (
-                <PhotoCard
-                  key={photo.id}
-                  photo={photo}
-                  project={proj}
-                  onClick={onOpenPhotoDetail}
-                />
-              );
-            })}
+            {recentPhotos.map((photo) => (
+              <PhotoCard
+                key={photo.id}
+                photo={photo}
+                onClick={onOpenPhotoDetail}
+              />
+            ))}
           </div>
         )}
-      </div>
-
-      {/* Active Projects List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <FolderKanban className="h-5 w-5 text-amber-400" />
-              <span>Danh sách công trình thi công</span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              Quản lý hồ sơ công trình và hạng mục thi công
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenNewProject}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700"
-            >
-              <Plus className="h-4 w-4 text-sky-400" />
-              <span>Thêm công trình</span>
-            </button>
-
-            <button
-              onClick={() => onNavigate('projects')}
-              className="flex items-center gap-1 text-xs font-semibold text-sky-400 hover:text-sky-300 ml-2"
-            >
-              <span>Xem tất cả</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.slice(0, 3).map((proj) => (
-            <div
-              key={proj.id}
-              onClick={() => onNavigate('projectDetail', { projectId: proj.id })}
-              className="cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700 hover:shadow-lg"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="rounded-md bg-sky-950 px-2 py-0.5 font-mono text-[11px] font-semibold text-sky-400 border border-sky-800">
-                    {proj.code}
-                  </span>
-                  <h4 className="mt-2 font-bold text-white text-base">
-                    {proj.name}
-                  </h4>
-                </div>
-
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                    proj.status === 'in_progress'
-                      ? 'bg-amber-950/80 text-amber-400 border-amber-800'
-                      : proj.status === 'completed'
-                      ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800'
-                      : 'bg-slate-800 text-slate-400 border-slate-700'
-                  }`}
-                >
-                  {proj.status === 'in_progress'
-                    ? 'Đang thi công'
-                    : proj.status === 'completed'
-                    ? 'Hoàn thành'
-                    : proj.status === 'planning'
-                    ? 'Chuẩn bị'
-                    : 'Tạm dừng'}
-                </span>
-              </div>
-
-              <p className="mt-2 text-xs text-slate-400 line-clamp-2">
-                {proj.address || 'Chưa cập nhật địa chỉ'}
-              </p>
-
-              <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-[11px] text-slate-400">
-                <span>Nhà thầu: {proj.contractor || 'N/A'}</span>
-                <span className="font-semibold text-sky-400">Chi tiết &rarr;</span>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

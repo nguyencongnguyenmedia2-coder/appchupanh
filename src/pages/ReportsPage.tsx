@@ -11,7 +11,7 @@ import {
   Calendar,
   Layers,
 } from 'lucide-react';
-import { ReportRecord, Project, WorkItem } from '../models';
+import { ReportRecord, WorkItem } from '../models';
 import { db } from '../storage/db';
 import { ReportFormModal } from '../components/reports/ReportFormModal';
 import { ReportPdfPreviewModal } from '../components/reports/ReportPdfPreviewModal';
@@ -19,21 +19,14 @@ import { ConfirmModal } from '../components/common/ConfirmModal';
 import { formatDateVi } from '../utils/formatters';
 
 interface ReportsPageProps {
-  preSelectedProjectId?: string;
-  onNavigate: (page: string, params?: any) => void;
+  onNavigate?: (page: string, params?: any) => void;
 }
 
-export const ReportsPage: React.FC<ReportsPageProps> = ({
-  preSelectedProjectId,
-}) => {
+export const ReportsPage: React.FC<ReportsPageProps> = () => {
   const [reports, setReports] = useState<ReportRecord[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    preSelectedProjectId || 'all'
-  );
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [reportToEdit, setReportToEdit] = useState<ReportRecord | null>(null);
@@ -42,14 +35,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
   const [reportToDelete, setReportToDelete] = useState<ReportRecord | null>(null);
 
   const loadData = async () => {
-    const [rList, pList, items] = await Promise.all([
+    const [rList, items] = await Promise.all([
       db.reports.reverse().sortBy('createdAt'),
-      db.projects.toArray(),
       db.workItems.toArray(),
     ]);
 
     setReports(rList);
-    setProjects(pList);
     setWorkItems(items);
   };
 
@@ -59,16 +50,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
 
   const filteredReports = reports.filter((r) => {
     const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
+    if (!q) return true;
+    return (
       r.title.toLowerCase().includes(q) ||
       r.reportCode.toLowerCase().includes(q) ||
-      r.author.toLowerCase().includes(q);
-
-    const matchesProject =
-      selectedProjectId === 'all' || r.projectId === selectedProjectId;
-
-    return matchesSearch && matchesProject;
+      r.author.toLowerCase().includes(q) ||
+      (r.projectName && r.projectName.toLowerCase().includes(q))
+    );
   });
 
   const handleDeleteReport = async () => {
@@ -112,24 +100,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tiêu đề báo cáo, mã số, người lập..."
+            placeholder="Tìm theo tiêu đề báo cáo, công trình, mã số, người lập..."
             className="w-full rounded-xl border border-slate-800 bg-slate-900/80 py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:border-sky-500 focus:outline-none"
           />
-        </div>
-
-        <div>
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-white focus:outline-none"
-          >
-            <option value="all">Tất cả dự án</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -147,7 +120,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredReports.map((report) => {
-            const proj = projects.find((p) => p.id === report.projectId);
             return (
               <div
                 key={report.id}
@@ -170,10 +142,10 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
                   </div>
 
                   <div className="mt-3 space-y-1 text-xs text-slate-400 border-t border-slate-800/80 pt-2.5">
-                    {proj && (
+                    {report.projectName && (
                       <div className="flex items-center gap-1.5 font-medium text-sky-400">
                         <FolderKanban className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{proj.name}</span>
+                        <span className="truncate">{report.projectName}</span>
                       </div>
                     )}
 
@@ -229,7 +201,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
       <ReportFormModal
         isOpen={isFormOpen}
         reportToEdit={reportToEdit}
-        projects={projects}
         workItems={workItems}
         onClose={() => setIsFormOpen(false)}
         onSaved={() => loadData()}
@@ -240,7 +211,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
         <ReportPdfPreviewModal
           isOpen={true}
           report={pdfPreviewReport}
-          project={projects.find((p) => p.id === pdfPreviewReport.projectId)}
           onClose={() => setPdfPreviewReport(null)}
         />
       )}

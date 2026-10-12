@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { initializeDatabase, db } from './storage/db';
-import { Project, PhotoRecord, WorkItem } from './models';
+import { PhotoRecord, WorkItem } from './models';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
 import { BottomNav } from './components/common/BottomNav';
 import { DashboardPage } from './pages/DashboardPage';
-import { ProjectsPage } from './pages/ProjectsPage';
-import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { CameraView } from './components/camera/CameraView';
 import { GalleryPage } from './pages/GalleryPage';
 import { TemplatesPage } from './pages/TemplatesPage';
@@ -16,7 +14,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import { HelpPrivacyPage } from './pages/HelpPrivacyPage';
 import { PhotoDetailModal } from './components/gallery/PhotoDetailModal';
 import { RestampModal } from './components/gallery/RestampModal';
-import { ProjectFormModal } from './components/projects/ProjectFormModal';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<string>('dashboard');
@@ -24,9 +21,7 @@ export function App() {
 
   const [activePhotoDetail, setActivePhotoDetail] = useState<PhotoRecord | null>(null);
   const [photoToRestamp, setPhotoToRestamp] = useState<PhotoRecord | null>(null);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
 
-  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allWorkItems, setAllWorkItems] = useState<WorkItem[]>([]);
 
   useEffect(() => {
@@ -36,11 +31,7 @@ export function App() {
   }, []);
 
   const loadContextData = async () => {
-    const [pList, wList] = await Promise.all([
-      db.projects.toArray(),
-      db.workItems.toArray(),
-    ]);
-    setAllProjects(pList);
+    const wList = await db.workItems.toArray();
     setAllWorkItems(wList);
   };
 
@@ -82,27 +73,13 @@ export function App() {
             <DashboardPage
               onNavigate={navigateTo}
               onOpenPhotoDetail={handleOpenPhotoDetail}
-              onOpenNewProject={() => setIsNewProjectModalOpen(true)}
-            />
-          )}
-
-          {currentPage === 'projects' && (
-            <ProjectsPage onNavigate={navigateTo} />
-          )}
-
-          {currentPage === 'projectDetail' && (
-            <ProjectDetailPage
-              projectId={pageParams.projectId}
-              onNavigate={navigateTo}
-              onOpenPhotoDetail={handleOpenPhotoDetail}
             />
           )}
 
           {currentPage === 'camera' && (
             <div className="h-[calc(100vh-65px)]">
               <CameraView
-                preSelectedProjectId={pageParams.projectId}
-                onPhotoSaved={(newPhoto) => {
+                onPhotoSaved={(_newPhoto) => {
                   navigateTo('gallery');
                 }}
               />
@@ -120,7 +97,6 @@ export function App() {
 
           {currentPage === 'reports' && (
             <ReportsPage
-              preSelectedProjectId={pageParams.projectId}
               onNavigate={navigateTo}
             />
           )}
@@ -141,7 +117,6 @@ export function App() {
         <PhotoDetailModal
           isOpen={true}
           photo={activePhotoDetail}
-          project={allProjects.find((p) => p.id === activePhotoDetail.projectId)}
           workItem={allWorkItems.find((w) => w.id === activePhotoDetail.workItemId)}
           onClose={() => setActivePhotoDetail(null)}
           onRestamp={(p) => {
@@ -157,7 +132,6 @@ export function App() {
         <RestampModal
           isOpen={true}
           photo={photoToRestamp}
-          projects={allProjects}
           workItems={allWorkItems}
           onClose={() => setPhotoToRestamp(null)}
           onSaved={(updated) => {
@@ -167,16 +141,6 @@ export function App() {
           }}
         />
       )}
-
-      {/* Quick New Project Modal */}
-      <ProjectFormModal
-        isOpen={isNewProjectModalOpen}
-        onClose={() => setIsNewProjectModalOpen(false)}
-        onSaved={(newProj) => {
-          setIsNewProjectModalOpen(false);
-          loadContextData();
-        }}
-      />
     </div>
   );
 }

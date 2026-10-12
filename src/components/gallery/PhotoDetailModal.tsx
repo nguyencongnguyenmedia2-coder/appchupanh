@@ -252,10 +252,10 @@ export const PhotoDetailModal: React.FC<PhotoDetailModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1.5">
                     <FolderKanban className="h-3.5 w-3.5 text-sky-400" />
-                    <span>Dự án:</span>
+                    <span>Công trình:</span>
                   </span>
                   <span className="font-semibold text-white">
-                    {project?.name || 'Chưa gán'}
+                    {photo.projectName || project?.name || 'Chưa đặt tên'}
                   </span>
                 </div>
 

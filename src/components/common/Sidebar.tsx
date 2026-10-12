@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Home,
-  FolderKanban,
   Camera,
   Image as ImageIcon,
   Stamp,
@@ -19,7 +18,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
   const mainLinks = [
     { id: 'dashboard', label: 'Trang chủ', icon: Home },
-    { id: 'projects', label: 'Quản lý Công trình', icon: FolderKanban },
     { id: 'camera', label: 'Máy ảnh Hiện trường', icon: Camera, highlight: true },
     { id: 'gallery', label: 'Thư viện Ảnh', icon: ImageIcon },
     { id: 'templates', label: 'Mẫu Đóng dấu', icon: Stamp },

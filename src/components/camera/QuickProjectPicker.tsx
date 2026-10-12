@@ -1,43 +1,24 @@
 import React from 'react';
-import { Project, WorkItem } from '../../models';
-import { FolderKanban, Layers } from 'lucide-react';
+import { WorkItem } from '../../models';
+import { Layers, Building2 } from 'lucide-react';
 
 interface QuickProjectPickerProps {
-  projects: Project[];
   workItems: WorkItem[];
-  selectedProjectId?: string;
   selectedWorkItemId?: string;
-  onSelectProject: (id: string) => void;
   onSelectWorkItem: (id: string) => void;
+  customProjectName?: string;
+  onUpdateProjectName?: (name: string) => void;
 }
 
 export const QuickProjectPicker: React.FC<QuickProjectPickerProps> = ({
-  projects,
   workItems,
-  selectedProjectId,
   selectedWorkItemId,
-  onSelectProject,
   onSelectWorkItem,
+  customProjectName = '',
+  onUpdateProjectName,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-950/80 p-2.5 backdrop-blur-md border border-white/10 shadow-lg text-xs">
-      {/* Project Selector */}
-      <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
-        <FolderKanban className="h-4 w-4 text-sky-400 shrink-0" />
-        <select
-          value={selectedProjectId || ''}
-          onChange={(e) => onSelectProject(e.target.value)}
-          className="w-full truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-white focus:border-sky-500 focus:outline-none"
-        >
-          <option value="">-- Chưa chọn công trình --</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} ({p.code})
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Work item Selector */}
       <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
         <Layers className="h-4 w-4 text-amber-400 shrink-0" />
@@ -46,7 +27,7 @@ export const QuickProjectPicker: React.FC<QuickProjectPickerProps> = ({
           onChange={(e) => onSelectWorkItem(e.target.value)}
           className="w-full truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-white focus:border-amber-500 focus:outline-none"
         >
-          <option value="">-- Chưa chọn hạng mục --</option>
+          <option value="">-- Hạng mục thi công --</option>
           {workItems.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
@@ -54,6 +35,20 @@ export const QuickProjectPicker: React.FC<QuickProjectPickerProps> = ({
           ))}
         </select>
       </div>
+
+      {/* Optional Project / Site name input */}
+      {onUpdateProjectName && (
+        <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+          <Building2 className="h-4 w-4 text-sky-400 shrink-0" />
+          <input
+            type="text"
+            value={customProjectName}
+            onChange={(e) => onUpdateProjectName(e.target.value)}
+            placeholder="Tên công trình / Vị trí (Tùy chọn)..."
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-white placeholder-slate-500 focus:border-sky-500 focus:outline-none"
+          />
+        </div>
+      )}
     </div>
   );
 };

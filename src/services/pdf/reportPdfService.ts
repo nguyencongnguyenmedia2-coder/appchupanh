@@ -157,24 +157,25 @@ export async function generateReportPdf(options: GenerateReportPdfOptions): Prom
   // Project Info Text inside Card
   p1.font = 'bold 15px sans-serif';
   p1.fillStyle = '#1e293b';
-  p1.fillText(`DỰ ÁN:`, MARGIN + 20, y + 30);
+  p1.fillText(`CÔNG TRÌNH:`, MARGIN + 20, y + 30);
   p1.font = '15px sans-serif';
-  p1.fillText(`${project?.name || 'Chưa liên kết'} (${project?.code || 'N/A'})`, MARGIN + 120, y + 30);
+  const displayProjName = report.projectName || project?.name || 'Công trình xây dựng';
+  p1.fillText(displayProjName, MARGIN + 130, y + 30);
 
   p1.font = 'bold 15px sans-serif';
   p1.fillText(`ĐỊA CHỈ:`, MARGIN + 20, y + 60);
   p1.font = '15px sans-serif';
-  p1.fillText(`${project?.address || 'Tại hiện trường'}`, MARGIN + 120, y + 60);
+  p1.fillText(`${project?.address || 'Tại hiện trường thi công'}`, MARGIN + 130, y + 60);
 
   p1.font = 'bold 15px sans-serif';
-  p1.fillText(`NHÀ THẦU:`, MARGIN + 20, y + 90);
+  p1.fillText(`ĐƠN VỊ:`, MARGIN + 20, y + 90);
   p1.font = '15px sans-serif';
-  p1.fillText(`${project?.contractor || 'Tổng thầu thi công'}`, MARGIN + 120, y + 90);
+  p1.fillText(`${project?.contractor || 'Ban chỉ huy công trường'}`, MARGIN + 130, y + 90);
 
   p1.font = 'bold 15px sans-serif';
   p1.fillText(`NGÀY LẬP:`, MARGIN + 20, y + 120);
   p1.font = '15px sans-serif';
-  p1.fillText(`${formatDateTime(report.reportDate, 'DD/MM/YYYY', '24h', false)}  |  Người lập: ${report.author}`, MARGIN + 120, y + 120);
+  p1.fillText(`${formatDateTime(report.reportDate, 'DD/MM/YYYY', '24h', false)}  |  Người lập: ${report.author}`, MARGIN + 130, y + 120);
 
   y += 165;
 

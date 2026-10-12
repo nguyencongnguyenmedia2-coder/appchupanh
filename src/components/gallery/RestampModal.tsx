@@ -8,8 +8,9 @@ import {
   Calendar,
   MapPin,
   Save,
+  Building2,
 } from 'lucide-react';
-import { PhotoRecord, StampTemplate, Project, WorkItem } from '../../models';
+import { PhotoRecord, StampTemplate, WorkItem } from '../../models';
 import { db } from '../../storage/db';
 import { getPhotoBlob, savePhotoBlob } from '../../storage/blobStorage';
 import { processAndStampPhoto, StampRenderMetadata } from '../../services/image/stampEngine';
@@ -17,7 +18,6 @@ import { processAndStampPhoto, StampRenderMetadata } from '../../services/image/
 interface RestampModalProps {
   isOpen: boolean;
   photo: PhotoRecord;
-  projects: Project[];
   workItems: WorkItem[];
   onClose: () => void;
   onSaved: (updatedPhoto: PhotoRecord) => void;
@@ -26,7 +26,6 @@ interface RestampModalProps {
 export const RestampModal: React.FC<RestampModalProps> = ({
   isOpen,
   photo,
-  projects,
   workItems,
   onClose,
   onSaved,
@@ -37,7 +36,7 @@ export const RestampModal: React.FC<RestampModalProps> = ({
   const [lat, setLat] = useState(photo.gpsDisplay?.latitude?.toString() || '');
   const [lng, setLng] = useState(photo.gpsDisplay?.longitude?.toString() || '');
   const [address, setAddress] = useState(photo.addressDisplay || '');
-  const [projectId, setProjectId] = useState(photo.projectId || '');
+  const [projectName, setProjectName] = useState(photo.projectName || '');
   const [workItemId, setWorkItemId] = useState(photo.workItemId || '');
   const [author, setAuthor] = useState(photo.author || '');
   const [contractor, setContractor] = useState(photo.contractor || '');
@@ -79,7 +78,6 @@ export const RestampModal: React.FC<RestampModalProps> = ({
       const template =
         templates.find((t) => t.id === selectedTemplateId) || photo.templateSnapshot;
 
-      const selectedProj = projects.find((p) => p.id === projectId);
       const selectedItem = workItems.find((w) => w.id === workItemId);
 
       const parsedLat = parseFloat(lat);
@@ -99,8 +97,7 @@ export const RestampModal: React.FC<RestampModalProps> = ({
         gpsSource: hasGps ? 'manual' : 'none',
         address: address.trim(),
         addressSource: address.trim() !== photo.addressOriginal ? 'manual' : 'geocoded',
-        projectName: selectedProj?.name,
-        projectCode: selectedProj?.code,
+        projectName: projectName.trim() || undefined,
         workItemName: selectedItem?.name,
         author: author.trim(),
         contractor: contractor.trim(),
@@ -145,8 +142,9 @@ export const RestampModal: React.FC<RestampModalProps> = ({
       const updatedRecord: PhotoRecord = {
         ...photo,
         id: newPhotoId,
-        projectId: projectId || undefined,
+        projectName: projectName.trim(),
         workItemId: workItemId || undefined,
+        workItemName: selectedItem?.name,
         displayDateTime: new Date(displayDateTime).toISOString(),
         dateTimeSource: 'manual',
         gpsDisplay: hasGps ? { latitude: parsedLat, longitude: parsedLng } : null,
@@ -229,22 +227,17 @@ export const RestampModal: React.FC<RestampModalProps> = ({
             </select>
           </div>
 
-          {/* Project & Work Item */}
+          {/* Project Name & Category */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-300">Dự án</label>
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+              <label className="block font-semibold text-slate-300">Công trình / Địa điểm</label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="VD: Toà nhà Landmark..."
                 className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-white"
-              >
-                <option value="">-- Chưa chọn --</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>

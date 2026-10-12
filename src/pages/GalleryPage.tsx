@@ -2,16 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Image as ImageIcon,
   Search,
-  Filter,
   ArrowUpDown,
-  CheckSquare,
-  Square,
   Calendar,
-  FolderKanban,
-  Layers,
-  Trash2,
 } from 'lucide-react';
-import { PhotoRecord, Project, WorkItem } from '../models';
+import { PhotoRecord, WorkItem } from '../models';
 import { db } from '../storage/db';
 import { deletePhotoBlobs } from '../storage/blobStorage';
 import { PhotoCard } from '../components/gallery/PhotoCard';
@@ -29,12 +23,10 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
   onNavigate,
 }) => {
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [startDate, setStartDate] = useState('');
@@ -49,14 +41,12 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
   const loadData = async () => {
-    const [allPhotos, allProjects, allItems] = await Promise.all([
+    const [allPhotos, allItems] = await Promise.all([
       db.photos.toArray(),
-      db.projects.toArray(),
       db.workItems.toArray(),
     ]);
 
     setPhotos(allPhotos);
-    setProjects(allProjects);
     setWorkItems(allItems);
   };
 
@@ -72,13 +62,10 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
       const matchesSearch =
         !q ||
         photo.title.toLowerCase().includes(q) ||
+        (photo.projectName && photo.projectName.toLowerCase().includes(q)) ||
         (photo.notes && photo.notes.toLowerCase().includes(q)) ||
         (photo.addressDisplay && photo.addressDisplay.toLowerCase().includes(q)) ||
         photo.author.toLowerCase().includes(q);
-
-      // Project filter
-      const matchesProject =
-        selectedProjectId === 'all' || photo.projectId === selectedProjectId;
 
       // Work Item filter
       const matchesWorkItem =
@@ -93,7 +80,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
         matchesDate = matchesDate && photo.displayDateTime <= endDate + 'T23:59:59';
       }
 
-      return matchesSearch && matchesProject && matchesWorkItem && matchesDate;
+      return matchesSearch && matchesWorkItem && matchesDate;
     })
     .sort((a, b) => {
       const timeA = new Date(a.displayDateTime).getTime();
@@ -153,7 +140,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
             <ImageIcon className="h-6 w-6 text-sky-400" />
-            <span>Thư viện Ảnh Công trình</span>
+            <span>Thư viện Ảnh Hiện trường</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Tổng số {photos.length} ảnh đã chụp và đóng dấu cục bộ trên thiết bị
@@ -172,11 +159,6 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
                 : 'border-slate-800 bg-slate-900 text-slate-300 hover:text-white'
             }`}
           >
-            {isSelectionMode ? (
-              <CheckSquare className="h-4 w-4" />
-            ) : (
-              <Square className="h-4 w-4" />
-            )}
             <span>{isSelectionMode ? 'Hủy chọn' : 'Chọn nhiều ảnh'}</span>
           </button>
         </div>
@@ -184,7 +166,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
 
       {/* Filter and Search Toolbar */}
       <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {/* Search input */}
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -192,25 +174,9 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo ghi chú, địa chỉ..."
+              placeholder="Tìm theo công trình, ghi chú, địa chỉ..."
               className="w-full rounded-xl border border-slate-700 bg-slate-800/80 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none"
             />
-          </div>
-
-          {/* Project filter */}
-          <div>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800/80 p-2 text-xs text-white focus:outline-none"
-            >
-              <option value="all">Tất cả công trình</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Work item filter */}
@@ -292,13 +258,11 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filteredPhotos.map((photo) => {
-            const proj = projects.find((p) => p.id === photo.projectId);
             const item = workItems.find((w) => w.id === photo.workItemId);
             return (
               <PhotoCard
                 key={photo.id}
                 photo={photo}
-                project={proj}
                 workItem={item}
                 isSelected={selectedIds.has(photo.id)}
                 isSelectionMode={isSelectionMode}

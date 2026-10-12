@@ -19,7 +19,7 @@ export interface Project {
 
 export interface WorkItem {
   id: string;
-  projectId?: string;      // Optional: global or project specific
+  projectId?: string;      // Optional
   name: string;            // Móng, Cốt thép, Cốp pha, Bê tông, v.v.
   isDefault?: boolean;
   createdAt: string;
@@ -67,7 +67,9 @@ export type DataSource = 'device' | 'manual' | 'adjusted' | 'geocoded' | 'none';
 export interface PhotoRecord {
   id: string;
   projectId?: string;
+  projectName?: string;       // Tên công trình / vị trí hiển thị trực tiếp
   workItemId?: string;
+  workItemName?: string;
   title: string;
   notes?: string;
 
@@ -129,7 +131,8 @@ export interface ReportRecord {
   id: string;
   reportCode: string;
   reportType: ReportType;
-  projectId: string;
+  projectId?: string;
+  projectName?: string;      // Tên công trình hiển thị trực tiếp
   workItemId?: string;
   title: string;
   reportDate: string;        // YYYY-MM-DD

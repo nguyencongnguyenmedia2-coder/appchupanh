@@ -7,7 +7,7 @@ import { getCurrentCoordinates, reverseGeocode } from '../../services/geolocatio
 import { processAndStampPhoto, StampRenderMetadata } from '../../services/image/stampEngine';
 import { savePhotoBlob } from '../../storage/blobStorage';
 import { db } from '../../storage/db';
-import { Project, WorkItem, StampTemplate, PhotoRecord } from '../../models';
+import { WorkItem, StampTemplate, PhotoRecord } from '../../models';
 import { PRESET_STAMP_TEMPLATES } from '../../models/defaultTemplates';
 import { QuickProjectPicker } from './QuickProjectPicker';
 import { ConfirmCaptureModal } from './ConfirmCaptureModal';
@@ -24,22 +24,17 @@ import {
 
 interface CameraViewProps {
   onPhotoSaved?: (photo: PhotoRecord) => void;
-  preSelectedProjectId?: string;
 }
 
 export const CameraView: React.FC<CameraViewProps> = ({
   onPhotoSaved,
-  preSelectedProjectId,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [projects, setProjects] = useState<Project[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    preSelectedProjectId || ''
-  );
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string>('');
+  const [customProjectName, setCustomProjectName] = useState<string>('');
   const [currentTemplate, setCurrentTemplate] = useState<StampTemplate>(
     PRESET_STAMP_TEMPLATES[0]
   );
@@ -76,6 +71,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     gpsSource: 'device' | 'manual' | 'none';
     address: string;
     addressSource: 'geocoded' | 'manual' | 'none';
+    projectName: string;
     author: string;
     contractor: string;
     template: StampTemplate;
@@ -109,25 +105,17 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
   }, []);
 
-  // 2. Load initial projects, work items & template safely
+  // 2. Load initial work items & template safely
   useEffect(() => {
     const loadInitData = async () => {
       try {
-        const pList = await db.projects.toArray();
-        setProjects(pList);
-        if (preSelectedProjectId) {
-          setSelectedProjectId(preSelectedProjectId);
-        } else if (pList.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(pList[0].id);
-        }
-
         const items = await db.workItems.toArray();
         setWorkItems(items);
         if (items.length > 0 && !selectedWorkItemId) {
           setSelectedWorkItemId(items[0].id);
         }
 
-        // Load default template using toArray() to avoid unindexed key errors
+        // Load default template using toArray()
         const templates = await db.stampTemplates.toArray();
         if (templates && templates.length > 0) {
           const defaultT =
@@ -140,7 +128,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
 
     loadInitData();
-  }, [preSelectedProjectId]);
+  }, []);
 
   // 3. Start Camera Stream
   useEffect(() => {
@@ -192,7 +180,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const handleTriggerCapture = () => {
     if (isCapturing || countdown !== null) return;
 
-    // If camera has error, prompt user with file input / native camera directly
+    // If camera has error, prompt user with native camera input directly
     if (cameraError || !videoRef.current || videoRef.current.readyState < 2) {
       fileInputRef.current?.click();
       return;
@@ -238,7 +226,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
       await processRawPhotoForConfirmation(rawBlob);
     } catch (err: any) {
       console.warn('Capture frame fallback:', err);
-      // If frame capture failed, open native camera / file input so user is not blocked
       fileInputRef.current?.click();
     } finally {
       setIsCapturing(false);
@@ -288,15 +275,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
     }
 
-    // 2. Address: use cached address or fallback to project address
-    let addressStr = cachedAddress;
-    let addressSource: 'geocoded' | 'manual' | 'none' = cachedAddress ? 'geocoded' : 'none';
-
-    const proj = projects.find((p) => p.id === selectedProjectId);
-    if (!addressStr && proj?.address) {
-      addressStr = proj.address;
-      addressSource = 'manual';
-    }
+    // 2. Address: use cached address
+    const addressStr = cachedAddress || 'Tại hiện trường';
+    const addressSource: 'geocoded' | 'manual' | 'none' = cachedAddress ? 'geocoded' : 'none';
 
     const workItem = workItems.find((w) => w.id === selectedWorkItemId);
     const templateToUse = currentTemplate || PRESET_STAMP_TEMPLATES[0];
@@ -309,11 +290,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
       gpsSource: gpsData ? 'device' : 'none',
       address: addressStr,
       addressSource,
-      projectName: proj?.name,
-      projectCode: proj?.code,
+      projectName: customProjectName.trim() || undefined,
       workItemName: workItem?.name,
       author: 'Kỹ sư Giám sát',
-      contractor: proj?.contractor || '',
       notes: '',
       photoId: `PHOTO-${Date.now().toString(36).toUpperCase()}`,
     };
@@ -328,8 +307,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
       gpsSource: gpsData ? 'device' : 'none',
       address: addressStr,
       addressSource,
+      projectName: customProjectName.trim(),
       author: 'Kỹ sư Giám sát',
-      contractor: proj?.contractor || '',
+      contractor: '',
       template: templateToUse,
     });
   };
@@ -342,6 +322,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     gpsSource: 'device' | 'manual' | 'none';
     addressDisplay: string;
     addressSource: 'geocoded' | 'manual' | 'none';
+    projectName: string;
     author: string;
     contractor: string;
     notes: string;
@@ -350,7 +331,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
     if (!capturedState) return;
 
     const photoId = `img-${Date.now()}`;
-    const proj = projects.find((p) => p.id === selectedProjectId);
     const workItem = workItems.find((w) => w.id === selectedWorkItemId);
     const templateToUse = capturedState.template || currentTemplate || PRESET_STAMP_TEMPLATES[0];
 
@@ -362,8 +342,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       gpsSource: finalData.gpsSource,
       address: finalData.addressDisplay,
       addressSource: finalData.addressSource,
-      projectName: proj?.name,
-      projectCode: proj?.code,
+      projectName: finalData.projectName || undefined,
       workItemName: workItem?.name,
       author: finalData.author,
       contractor: finalData.contractor,
@@ -413,8 +392,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const nowIso = new Date().toISOString();
     const photoRecord: PhotoRecord = {
       id: photoId,
-      projectId: selectedProjectId || undefined,
+      projectName: finalData.projectName,
       workItemId: selectedWorkItemId || undefined,
+      workItemName: workItem?.name,
       title: `${workItem?.name || 'Ảnh công trình'} - ${new Date(finalData.displayDateTime).toLocaleTimeString('vi-VN')}`,
       notes: finalData.notes,
       capturedAtOriginal: capturedState.displayDateTime,
@@ -449,7 +429,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   };
 
-  const selectedProj = projects.find((p) => p.id === selectedProjectId);
   const selectedItem = workItems.find((w) => w.id === selectedWorkItemId);
 
   return (
@@ -464,15 +443,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
         className="hidden"
       />
 
-      {/* Top Floating Bar: Quick Project & WorkItem Select */}
+      {/* Top Floating Bar: Quick Category & Site Name */}
       <div className="absolute top-3 left-3 right-3 z-20">
         <QuickProjectPicker
-          projects={projects}
           workItems={workItems}
-          selectedProjectId={selectedProjectId}
           selectedWorkItemId={selectedWorkItemId}
-          onSelectProject={setSelectedProjectId}
           onSelectWorkItem={setSelectedWorkItemId}
+          customProjectName={customProjectName}
+          onUpdateProjectName={setCustomProjectName}
         />
       </div>
 
@@ -541,7 +519,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         {currentTemplate && !cameraError && (
           <div className="pointer-events-none absolute bottom-24 left-4 z-10 max-w-xs rounded-xl bg-slate-950/75 p-3 text-[11px] text-white backdrop-blur-md border border-white/10 shadow-lg">
             <div className="font-bold text-sky-400">
-              {selectedProj ? selectedProj.name.toUpperCase() : 'TIMESNAP PRO'}
+              {customProjectName.trim() ? customProjectName.toUpperCase() : 'TIMESNAP PRO'}
             </div>
             {selectedItem && (
               <div className="text-amber-300 font-semibold">
@@ -617,7 +595,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </button>
         </div>
 
-        {/* Lower trigger bar: Gallery Import, Shutter Button, Quick Template Picker */}
+        {/* Lower trigger bar */}
         <div className="flex items-center justify-around">
           {/* Gallery Import */}
           <button
@@ -671,7 +649,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           initialAddress={capturedState.address}
           gpsSource={capturedState.gpsSource}
           addressSource={capturedState.addressSource}
-          project={selectedProj}
+          initialProjectName={capturedState.projectName}
           workItem={selectedItem}
           defaultAuthor={capturedState.author}
           defaultContractor={capturedState.contractor}

@@ -22,7 +22,6 @@ import { getPhotoBlobUrl } from '../../storage/blobStorage';
 interface ReportFormModalProps {
   isOpen: boolean;
   reportToEdit?: ReportRecord | null;
-  projects: Project[];
   workItems: WorkItem[];
   onClose: () => void;
   onSaved: (report: ReportRecord) => void;
@@ -31,12 +30,12 @@ interface ReportFormModalProps {
 export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   isOpen,
   reportToEdit,
-  projects,
   workItems,
   onClose,
   onSaved,
 }) => {
   const [projectId, setProjectId] = useState('');
+  const [projectName, setProjectName] = useState('');
   const [workItemId, setWorkItemId] = useState('');
   const [reportCode, setReportCode] = useState('');
   const [reportType, setReportType] = useState<ReportType>('daily');
@@ -61,7 +60,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   useEffect(() => {
     if (reportToEdit) {
-      setProjectId(reportToEdit.projectId);
+      setProjectId(reportToEdit.projectId || '');
+      setProjectName(reportToEdit.projectName || '');
       setWorkItemId(reportToEdit.workItemId || '');
       setReportCode(reportToEdit.reportCode);
       setReportType(reportToEdit.reportType);
@@ -80,7 +80,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setSelectedPhotoItems(reportToEdit.photoItems || []);
     } else {
       const now = new Date();
-      setProjectId(projects.length > 0 ? projects[0].id : '');
+      setProjectId('');
+      setProjectName('');
       setWorkItemId('');
       setReportCode(`BC-${now.getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`);
       setReportType('daily');
@@ -98,39 +99,24 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setApprovedBy('Chỉ huy trưởng');
       setSelectedPhotoItems([]);
     }
-  }, [reportToEdit, isOpen, projects]);
+  }, [reportToEdit, isOpen]);
 
-  // Load available photos when project changes
+  // Load available photos
   useEffect(() => {
-    if (projectId) {
-      db.photos
-        .where('projectId')
-        .equals(projectId)
-        .toArray()
-        .then(async (photos) => {
-          setAvailablePhotos(photos);
-          // Load thumbnails
-          const thumbMap: Record<string, string> = {};
-          for (const p of photos) {
-            const url = await getPhotoBlobUrl(p.thumbnailBlobId || p.stampedPhotoBlobId);
-            if (url) thumbMap[p.id] = url;
-          }
-          setPhotoThumbMap(thumbMap);
-        });
-    } else {
-      db.photos
-        .toArray()
-        .then(async (photos) => {
-          setAvailablePhotos(photos);
-          const thumbMap: Record<string, string> = {};
-          for (const p of photos) {
-            const url = await getPhotoBlobUrl(p.thumbnailBlobId || p.stampedPhotoBlobId);
-            if (url) thumbMap[p.id] = url;
-          }
-          setPhotoThumbMap(thumbMap);
-        });
-    }
-  }, [projectId]);
+    if (!isOpen) return;
+    db.photos
+      .reverse()
+      .sortBy('createdAt')
+      .then(async (photos) => {
+        setAvailablePhotos(photos);
+        const thumbMap: Record<string, string> = {};
+        for (const p of photos) {
+          const url = await getPhotoBlobUrl(p.thumbnailBlobId || p.stampedPhotoBlobId);
+          if (url) thumbMap[p.id] = url;
+        }
+        setPhotoThumbMap(thumbMap);
+      });
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -165,8 +151,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !projectId) {
-      alert('Vui lòng nhập tiêu đề báo cáo và chọn dự án.');
+    if (!title.trim()) {
+      alert('Vui lòng nhập tiêu đề báo cáo.');
       return;
     }
 
@@ -175,7 +161,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       id: reportToEdit ? reportToEdit.id : `rep-${Date.now()}`,
       reportCode: reportCode.trim(),
       reportType,
-      projectId,
+      projectId: projectId || 'default',
+      projectName: projectName.trim() || undefined,
       workItemId: workItemId || undefined,
       title: title.trim(),
       reportDate: reportDate || nowIso.slice(0, 10),
@@ -227,25 +214,19 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-xs">
-          {/* Top row: Project, Type, Code, Date */}
+          {/* Top row: Project/Site, Type, Code, Date */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="block font-semibold text-slate-300">
-                Dự án liên kết <span className="text-red-400">*</span>
+                Tên công trình / Địa điểm
               </label>
-              <select
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="VD: Vinhome Central Park, Cầu vượt..."
                 className="mt-1.5 w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-white"
-              >
-                <option value="">-- Chọn công trình --</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
@@ -409,7 +390,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
               <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-3">
                 {availablePhotos.length === 0 ? (
                   <p className="text-center text-slate-500 py-4">
-                    Chưa có ảnh nào trong công trình này. Vui lòng chụp thêm ảnh trước.
+                    Chưa có ảnh nào trong thư viện. Vui lòng chụp thêm ảnh trước.
                   </p>
                 ) : (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">

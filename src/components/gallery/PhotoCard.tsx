@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PhotoRecord, Project, WorkItem } from '../../models';
-import { getPhotoBlobUrl, revokePhotoBlobUrl } from '../../storage/blobStorage';
+import { getPhotoBlobUrl } from '../../storage/blobStorage';
 import { formatDateTime } from '../../services/image/stampEngine';
-import { Calendar, MapPin, CheckSquare, Square } from 'lucide-react';
+import { Calendar, CheckSquare, Square } from 'lucide-react';
 
 interface PhotoCardProps {
   photo: PhotoRecord;
@@ -86,9 +86,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         )}
 
         {/* Work Item Badge */}
-        {workItem && (
+        {(workItem || photo.workItemName) && (
           <div className="absolute bottom-2 left-2 rounded-lg bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-amber-400 backdrop-blur-xs border border-white/10">
-            {workItem.name}
+            {workItem?.name || photo.workItemName}
           </div>
         )}
 
@@ -116,9 +116,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
           </span>
         </div>
 
-        {project && (
+        {(photo.projectName || project?.name) && (
           <div className="mt-1 truncate text-[11px] font-medium text-sky-400">
-            {project.name}
+            {photo.projectName || project?.name}
           </div>
         )}
       </div>

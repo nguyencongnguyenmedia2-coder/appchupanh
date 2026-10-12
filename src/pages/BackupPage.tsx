@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   HardDriveDownload,
   Upload,
@@ -6,11 +6,8 @@ import {
   AlertTriangle,
   CheckCircle,
   FileArchive,
-  FolderKanban,
   ShieldAlert,
 } from 'lucide-react';
-import { Project } from '../models';
-import { db } from '../storage/db';
 import {
   downloadBackupZip,
   importBackupZip,
@@ -18,9 +15,6 @@ import {
 } from '../services/backup/backupService';
 
 export const BackupPage: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-
   // Export state
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
@@ -32,16 +26,11 @@ export const BackupPage: React.FC = () => {
   const [importProgress, setImportProgress] = useState('');
   const [importResult, setImportResult] = useState<ImportBackupResult | null>(null);
 
-  useEffect(() => {
-    db.projects.toArray().then(setProjects);
-  }, []);
-
   const handleExport = async () => {
     setIsExporting(true);
     setExportMessage('Đang chuẩn bị dữ liệu sao lưu...');
     try {
-      const projFilter = selectedProjectId === 'all' ? undefined : selectedProjectId;
-      await downloadBackupZip(projFilter, (curr, tot, msg) => {
+      await downloadBackupZip(undefined, (_curr, _tot, msg) => {
         setExportMessage(msg);
       });
     } catch (err: any) {
@@ -118,38 +107,23 @@ export const BackupPage: React.FC = () => {
           <div>
             <h3 className="text-base font-bold text-white">Xuất gói sao lưu (Export ZIP)</h3>
             <p className="text-xs text-slate-400">
-              Nén dữ liệu metadata công trình, báo cáo và ảnh gốc / ảnh đóng dấu
+              Nén toàn bộ dữ liệu, báo cáo, mẫu dấu và ảnh hiện trường thành tệp lưu trữ
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-xs">
-          <div>
-            <label className="block font-semibold text-slate-300">Phạm vi sao lưu</label>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-700 bg-slate-800 p-2.5 text-white"
-            >
-              <option value="all">Toàn bộ ứng dụng (Tất cả công trình & ảnh)</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  Chỉ công trình: {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col justify-end">
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              className="flex items-center justify-center gap-2 rounded-xl bg-sky-600 py-2.5 font-bold text-white shadow-lg shadow-sky-950 hover:bg-sky-500 disabled:opacity-50 text-xs"
-            >
-              <FileArchive className="h-4 w-4" />
-              <span>{isExporting ? exportMessage || 'Đang đóng gói...' : 'Tải xuống tệp Sao lưu .ZIP'}</span>
-            </button>
-          </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+          <p className="text-slate-300">
+            Tải về trọn vẹn tệp nén ZIP bao gồm cơ sở dữ liệu ảnh, báo cáo hiện trường và cấu hình mẫu dấu để lưu trữ an toàn hoặc chuyển thiết bị.
+          </p>
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-6 py-2.5 font-bold text-white shadow-lg shadow-sky-950 hover:bg-sky-500 disabled:opacity-50 text-xs shrink-0"
+          >
+            <FileArchive className="h-4 w-4" />
+            <span>{isExporting ? exportMessage || 'Đang đóng gói...' : 'Tải xuống tệp Sao lưu .ZIP'}</span>
+          </button>
         </div>
       </div>
 
